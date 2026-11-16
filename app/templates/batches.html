@@ -1,1 +1,36 @@
-{% extends 'base.html' %}{% block body %}<div class="grid archive-layout"><section class="panel"><div class="panel-head"><h2>核算记录</h2><span>{{history|length}} 批</span></div>{{ledger(history,[('id','运行批次'),('created','UTC生成时间'),('version','版本'),('reviewed','复核')])}}</section><section class="panel"><div class="panel-head"><h2>复核签发</h2><span>v{{bundle.version}}</span></div><div class="panel-body"><label class="digest-label">输入 SHA256<code class="digest">{{bundle.manifest.sha256}}</code></label><dl><dt>规则</dt><dd>{{bundle.manifest.rule_version}}</dd><dt>核算耗时</dt><dd>{{bundle.manifest.elapsed_ms}} ms</dd></dl><button class="btn primary" id="review" data-run="{{bundle.manifest.run_id}}" data-version="{{bundle.version}}">确认复核</button></div></section></div>{% endblock %}
+{% extends 'base.html' %}{% block body %}
+<div class="grid archive-layout">
+  <section class="panel"><div class="panel-head"><h2>核算记录</h2><span>{{history|length}} 批</span></div>{{ledger(history,[('id','运行批次'),('created','UTC生成时间'),('version','版本'),('reviewed','复核')])}}</section>
+  <section class="panel"><div class="panel-head"><h2>复核签发</h2><span>v{{bundle.version}}</span></div><div class="panel-body"><label class="digest-label">输入 SHA256<code class="digest">{{bundle.manifest.sha256}}</code></label><dl><dt>规则</dt><dd>{{bundle.manifest.rule_version}}</dd><dt>核算耗时</dt><dd>{{bundle.manifest.elapsed_ms}} ms</dd><dt>复核状态</dt><dd>{{'已复核' if bundle.reviewed else '未复核'}}</dd></dl><button class="btn primary" id="review" data-run="{{bundle.manifest.run_id}}" data-version="{{bundle.version}}">确认复核</button></div></section>
+</div>
+
+<div class="grid archive-layout">
+  <section class="panel"><div class="panel-head"><h2>正式结论修订</h2><span class="status-tag {{'' if formal.status=='current' else 'warn'}}">{{formal.label}}</span></div>
+  {{ledger(conclusions,[('revision','修订'),('run_id','批次'),('created_at','定版时间'),('cutoff','统计截止'),('input','输入'),('total','纳入'),('pass','达标'),('late','超时'),('isolated','隔离'),('blank','空行'),('active','生效')])}}
+  </section>
+  <section class="panel"><div class="panel-head"><h2>定版裁决</h2><span>口径冻结</span></div><div class="panel-body">
+    <p class="hint">定版把截止时点内已复核的标本冻结为正式结论；截止后接收的标本进入下一周期。补录窗口由定版时间起算，窗口内后到的补录自动纳入下一次定版，超窗补录需人工确认。</p>
+    <label>统计截止（带偏移，留空取最新接收次日的上海零点）<input id="cutoff" placeholder="2026-11-03T00:00:00+08:00"></label>
+    {% if formal.active %}<p class="hint">重新定版默认沿用当前生效修订的统计截止与补录窗口，只处理补录差异。</p>{% endif %}
+    <label>补录窗口 / 小时<input id="window" type="number" min="0" max="168" value="24"></label>
+    <label class="check"><input id="confirm-overdue" type="checkbox"> 确认纳入超出补录窗口的后到标本</label>
+    <button class="btn primary" id="lock" data-run="{{bundle.manifest.run_id}}" data-version="{{bundle.version}}" {{'' if bundle.reviewed else 'disabled'}}>形成正式结论</button>
+    {% if not bundle.reviewed %}<p class="hint">请先复核当前批次。</p>{% endif %}
+    {% if formal.active %}
+    <hr>
+    <dl><dt>当前生效</dt><dd>v{{formal.active.revision}}</dd><dt>截止</dt><dd>{{formal.active.cutoff}}</dd><dt>补录窗口</dt><dd>{{formal.active.evidence.backfill_hours}} h</dd><dt>摘要</dt><dd class="digest">{{formal.active.digest}}</dd></dl>
+    {% if previous %}<button class="btn" id="restore" data-revision="{{previous.revision}}" data-active="{{formal.active.revision}}">恢复 v{{previous.revision}}（保留本次复核依据）</button>{% endif %}
+    {% endif %}
+  </div></section>
+</div>
+
+{% if formal.active and formal.diff %}
+<section class="panel"><div class="panel-head"><h2>与最新核算的差异</h2><span>{{formal.reasons|length}} 项</span></div><div class="panel-body">
+{% for reason in formal.reasons %}<div class="diff-reason"><span class="status-tag warn">{{reason.code}}</span><b>{{reason.message}}</b>{% if reason.specimens %}<span class="mono">{{reason.specimens[:12]|join('、')}}{{'…' if reason.specimens|length>12 else ''}}</span>{% endif %}</div>{% else %}<p class="hint">最新核算与正式结论一致。</p>{% endfor %}
+<dl><dt>超时名单新增</dt><dd>{{formal.diff.timeouts.new|join('、') or '无'}}</dd><dt>超时名单移出</dt><dd>{{formal.diff.timeouts.cleared|join('、') or '无'}}</dd></dl>
+</div></section>
+{% endif %}
+
+<section class="panel"><div class="panel-head"><h2>复核与定版审计</h2><span>{{reviews|length}} 条</span></div>
+{{ledger(reviews,[('id','序号'),('run_id','批次'),('action','动作'),('outcome','结果'),('version','版本'),('created_at','UTC时间'),('detail','依据')])}}
+</section>{% endblock %}

@@ -1,1 +1,34 @@
-{% extends 'base.html' %}{% block body %}<div class="grid result-layout"><section class="panel"><div class="panel-head"><h2>标本时效</h2><span>宽限 {{bundle.calculate.grace}} min</span></div><div class="filterbar"><label>标本 / 科室<input id="table-filter" placeholder="筛选记录"></label><span class="status-tag">已签发</span></div>{{ledger(bundle.calculate.rows,[('specimen','标本号'),('department','科室'),('clock','计时'),('elapsed_minutes','净用时 / min'),('limit_minutes','上限 / min'),('overdue_minutes','超时 / min'),('state','结论')])}}</section><div class="summary-stack"><section class="panel"><div class="panel-head"><h2>时效分布</h2><span>{{bundle.calculate.total}} 条</span></div><div class="panel-body"><div class="donut" style="--percentage:{{bundle.calculate.late / ([bundle.calculate.total,1]|max) *100}}"><b>{{bundle.calculate.late}}</b><span>超时</span></div><div class="chart-key"><span>达标 {{bundle.calculate.pass}}</span><span>超时 {{bundle.calculate.late}}</span></div></div></section><section class="panel"><div class="panel-head"><h2>暂停扣除</h2><span>min</span></div><div class="panel-body">{% for r in bundle.model.rows if r.pause_count %}<div class="pause-row"><b>{{r.specimen}}</b><span>{{r.pause_minutes}}</span></div>{% endfor %}</div></section></div></div>{% endblock %}
+{% extends 'base.html' %}{% block body %}
+<div class="grid result-layout">
+  <section class="panel">
+    <div class="panel-head"><h2>标本时效</h2><span>宽限 {{bundle.calculate.grace}} min</span></div>
+    <div class="filterbar"><label>标本 / 科室<input id="table-filter" placeholder="筛选记录"></label><span class="status-tag {{'' if formal.status=='current' else 'warn'}}">{{formal.label}}</span></div>
+    {{ledger(calculation.rows,[('specimen','标本号'),('department','科室'),('clock','计时'),('elapsed_minutes','净用时 / min'),('limit_minutes','上限 / min'),('overdue_minutes','超时 / min'),('state','本次结论'),('formal_label','正式结论')])}}
+  </section>
+  <div class="summary-stack">
+    <section class="panel"><div class="panel-head"><h2>时效分布</h2><span>本次 {{calculation.total}} 条</span></div><div class="panel-body"><div class="donut" style="--percentage:{{calculation.late / ([calculation.total,1]|max) *100}}"><b>{{calculation.late}}</b><span>超时</span></div><div class="chart-key"><span>达标 {{calculation.pass}}</span><span>超时 {{calculation.late}}</span></div></div></section>
+    <section class="panel"><div class="panel-head"><h2>正式结论</h2><span>v{{formal.revision or '—'}}</span></div><div class="panel-body">{% if formal.active %}<dl><dt>状态</dt><dd>{{formal.label}}</dd><dt>截止</dt><dd>{{formal.cutoff}}</dd><dt>纳入</dt><dd>{{formal.counts.total}}</dd><dt>达标 / 超时</dt><dd>{{formal.counts.pass}} / {{formal.counts.late}}</dd><dt>隔离</dt><dd>{{formal.counts.isolated}}</dd><dt>空行</dt><dd>{{formal.counts.blank}}</dd><dt>下一周期</dt><dd>{{formal.counts.out_of_scope}}</dd><dt>口径守恒</dt><dd>{{'✓' if formal.counts.scope_balanced else '✗'}}</dd></dl><a class="btn" href="/batches">查看批次复核</a>{% else %}<p class="hint">尚未形成正式结论。</p>{% endif %}</div></section>
+    <section class="panel"><div class="panel-head"><h2>暂停扣除</h2><span>min</span></div><div class="panel-body">{% for r in bundle.model.rows if r.pause_count %}<div class="pause-row"><b>{{r.specimen}}</b><span>{{r.pause_minutes}}</span></div>{% endfor %}</div></section>
+  </div>
+</div>
+{% if formal.active %}
+{% set d=formal.diff %}
+<section class="panel"><div class="panel-head"><h2>补录前后差异</h2><span class="status-tag {{'' if formal.status=='current' else 'warn'}}">{{formal.label}}</span></div>
+<div class="panel-body">
+{% if not d.reasons %}<p class="hint">本次核算与正式结论一致：正式 v{{formal.revision}} 在截止 {{formal.cutoff}} 内纳入 {{formal.counts.total}} 条，未发现新增、移出或依据变化。</p>{% endif %}
+{% for reason in d.reasons %}<div class="diff-reason"><span class="status-tag {{'warn' if reason.code in ['OVERDUE_BACKFILL','BASIS_CHANGED','RULE_CHANGED'] else ''}}">{{reason.code}}</span><b>{{reason.message}}</b>{% if reason.specimens %}<span class="mono">{{reason.specimens[:12]|join('、')}}{{'…' if reason.specimens|length>12 else ''}}</span>{% endif %}</div>{% endfor %}
+<p class="hint">补录窗口 {{d.window.hours}} h：{{d.window.starts}} 至 {{d.window.ends}}（以定版时点起算）。截止后接收的标本进入下一周期，不计入本版。</p>
+{% if formal.status=='pending_decision' %}<p class="hint"><a href="/batches">到批次复核裁定超窗补录</a>后才能重新定版。</p>{% endif %}
+<table><thead><tr><th>口径</th><th>定版时</th><th>本次核算</th><th>新增</th><th>移出</th><th>达标→超时</th><th>超时→达标</th><th>守恒</th></tr></thead><tbody>
+<tr><td>纳入标本</td><td class="num">{{d.bridge.before.total}}</td><td class="num">{{d.bridge.after.total}}</td><td class="num">{{d.bridge.added.total}}</td><td class="num">{{d.bridge.removed.total}}</td><td class="num">—</td><td class="num">—</td><td>{{'✓' if d.bridge.total_balanced else '✗'}}</td></tr>
+<tr><td>达标</td><td class="num">{{d.bridge.before.pass}}</td><td class="num">{{d.bridge.after.pass}}</td><td class="num">{{d.bridge.added.pass}}</td><td class="num">{{d.bridge.removed.pass}}</td><td class="num">-{{d.bridge.pass_to_late}}</td><td class="num">+{{d.bridge.late_to_pass}}</td><td>{{'✓' if d.bridge.pass_balanced else '✗'}}</td></tr>
+<tr><td>超时</td><td class="num">{{d.bridge.before.late}}</td><td class="num">{{d.bridge.after.late}}</td><td class="num">{{d.bridge.added.late}}</td><td class="num">{{d.bridge.removed.late}}</td><td class="num">+{{d.bridge.pass_to_late}}</td><td class="num">-{{d.bridge.late_to_pass}}</td><td>{{'✓' if d.bridge.late_balanced else '✗'}}</td></tr>
+</tbody></table>
+<div class="diff-columns">
+  <div><h3>新增标本</h3>{% for r in d.added %}<div class="pause-row"><b>{{r.specimen}}</b><span>{{r.state}} · {{r.arrival or '—'}}</span></div>{% else %}<p class="hint">无</p>{% endfor %}</div>
+  <div><h3>依据变化</h3>{% for c in d.changed %}<div class="pause-row"><b>{{c.specimen}}</b><span>{% for k,v in c.fields.items() %}{{k}} {{v.before}}→{{v.after}} {% endfor %}</span></div>{% else %}<p class="hint">无</p>{% endfor %}</div>
+  <div><h3>超时名单变化</h3><p class="hint">新增超时：{{d.timeouts.new|join('、') or '无'}}</p><p class="hint">移出超时：{{d.timeouts.cleared|join('、') or '无'}}</p></div>
+</div>
+</div></section>
+{% endif %}
+{% endblock %}
