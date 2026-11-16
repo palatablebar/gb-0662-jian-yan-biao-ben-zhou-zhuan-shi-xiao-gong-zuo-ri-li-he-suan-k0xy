@@ -1,0 +1,5 @@
+const state={busy:false};
+const feedback=document.getElementById('feedback');
+async function submit(path,payload){if(state.busy)return;state.busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);feedback.hidden=false;feedback.textContent='核算中…';try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.detail||'核算失败，请重试');location.reload();}catch(error){feedback.textContent=error.message;}finally{state.busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
+document.getElementById('run').addEventListener('click',()=>{const text=document.getElementById('csv-text')?.value;submit('/api/runs',{sample:document.getElementById('sample').value,grace:document.getElementById('grace')?.value||'0',...(text?{csv_text:text}:{})});});
+document.getElementById('review')?.addEventListener('click',event=>submit('/api/batches/review',{run_id:event.currentTarget.dataset.run,version:Number(event.currentTarget.dataset.version)}));

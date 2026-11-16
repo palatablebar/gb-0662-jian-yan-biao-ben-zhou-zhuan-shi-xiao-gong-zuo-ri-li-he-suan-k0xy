@@ -1,0 +1,6 @@
+:root {
+ --bg:#edf1f5; --rail:#f8fafc; --panel:#ffffff; --panel-2:#f4f7fb; --line:#d9e1eb; --line-strong:#a6b8ce;
+ --ink:#253348; --ink-muted:#728198; --accent:#3677cb; --accent-ink:#ffffff; --accent-soft:#e9f1fd;
+ --ok:#27865a; --warn:#b5791b; --bad:#c24c5c; --info:#5d7da1; --ui:"Avenir Next","PingFang SC",sans-serif; --mono:Menlo,Consolas,monospace;
+ --radius:7px; --row:34px; --gap:18px; --pad:18px; --bar:52px; --dur:120ms;
+}
